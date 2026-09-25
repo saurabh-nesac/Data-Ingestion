@@ -14,40 +14,74 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-const storage = multer.memoryStorage();
+// Configurable upload limit (default: 5120MB / 5GB for large numerical model runs)
+const maxUploadSizeMb = parseInt(process.env.MAX_UPLOAD_SIZE_MB || '5120', 10);
+const maxFileSizeBytes = maxUploadSizeMb * 1024 * 1024;
+
+// Use diskStorage to stream large files directly to disk instead of exhausting Node.js heap memory
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    // Preserve original filename
+    cb(null, file.originalname);
+  },
+});
+
 const upload = multer({
   storage,
-  limits: { fileSize: 300 * 1024 * 1024 }, // 300MB limit for WRF/GPM files
+  limits: { fileSize: maxFileSizeBytes },
 });
+
+// Middleware to gracefully catch Multer errors (e.g., LIMIT_FILE_SIZE)
+const handleFileUpload = (fieldName: string) => {
+  return (req: Request, res: Response, next: () => void) => {
+    upload.single(fieldName)(req, res, (err: any) => {
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(413).json({
+            error: `File is too large. Current upload limit is ${maxUploadSizeMb} MB.`,
+            details: `You can set MAX_UPLOAD_SIZE_MB in your environment / .env file, or copy the file directly into the ./uploads folder and click "Scan Folder".`,
+            limitMb: maxUploadSizeMb,
+          });
+        }
+        return res.status(400).json({ error: `Upload error: ${err.message}`, code: err.code });
+      } else if (err) {
+        return res.status(500).json({ error: `Upload failed: ${err.message}` });
+      }
+      next();
+    });
+  };
+};
 
 // --- Dataset Status & Ingestion Endpoints ---
 
 apiRouter.get('/dataset-status', (req: Request, res: Response) => {
   const status = centralDataStore.getDatasetStatus();
-  res.json(status);
+  res.json({
+    ...status,
+    maxUploadSizeMb,
+  });
 });
 
 /**
  * POST /api/upload/wrf
  * Ingests WRF NetCDF model output file
  */
-apiRouter.post('/upload/wrf', upload.single('file'), (req: Request, res: Response) => {
+apiRouter.post('/upload/wrf', handleFileUpload('file'), (req: Request, res: Response) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No WRF NetCDF file uploaded' });
     }
 
     const filename = req.file.originalname;
-    const parsed = parseWRFNetCDF(req.file.buffer, filename);
-    centralDataStore.registerWRFDataset(parsed);
+    const filePath = req.file.path;
 
-    // Also optionally save to disk for caching
-    try {
-      const diskPath = path.join(uploadDir, filename);
-      fs.writeFileSync(diskPath, req.file.buffer);
-    } catch {
-      // Ignore disk write failure
-    }
+    // Read file from disk
+    const fileBuffer = fs.readFileSync(filePath);
+    const parsed = parseWRFNetCDF(fileBuffer, filename);
+    centralDataStore.registerWRFDataset(parsed);
 
     res.json({
       success: true,
@@ -79,22 +113,18 @@ apiRouter.post('/upload/wrf', upload.single('file'), (req: Request, res: Respons
  * POST /api/upload/gpm
  * Ingests GPM IMERG Half-Hourly HDF5 / NetCDF file
  */
-apiRouter.post('/upload/gpm', upload.single('file'), (req: Request, res: Response) => {
+apiRouter.post('/upload/gpm', handleFileUpload('file'), (req: Request, res: Response) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No GPM HDF5 file uploaded' });
     }
 
     const filename = req.file.originalname;
-    const slice = parseGPMHDF5(req.file.buffer, filename);
-    centralDataStore.registerGPMSlice(slice);
+    const filePath = req.file.path;
 
-    try {
-      const diskPath = path.join(uploadDir, filename);
-      fs.writeFileSync(diskPath, req.file.buffer);
-    } catch {
-      // Ignore disk write error
-    }
+    const fileBuffer = fs.readFileSync(filePath);
+    const slice = parseGPMHDF5(fileBuffer, filename);
+    centralDataStore.registerGPMSlice(slice);
 
     res.json({
       success: true,

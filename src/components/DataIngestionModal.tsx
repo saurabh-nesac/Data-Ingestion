@@ -310,12 +310,17 @@ export const DataIngestionModal: React.FC<DataIngestionModalProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* WRF NetCDF Upload */}
             <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-              <div className="flex items-center gap-2 font-bold text-white">
-                <FileCode className="w-4 h-4 text-blue-400" />
-                Upload WRF NetCDF File (.nc / .nc4 / wrfout_*)
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 font-bold text-white">
+                  <FileCode className="w-4 h-4 text-blue-400" />
+                  Upload WRF NetCDF File
+                </div>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/20 text-blue-300">
+                  Up to {datasetStatus?.maxUploadSizeMb ? `${(datasetStatus.maxUploadSizeMb / 1024).toFixed(1)} GB` : '5 GB'}
+                </span>
               </div>
               <p className="text-[11px] text-slate-400">
-                Upload raw WRF simulation outputs (e.g. <code className="text-cyan-400">wrfout_d01_2025-09-01_00:00:00</code> or <code className="text-cyan-400">wrfout_d02_*</code>).
+                Upload raw WRF simulation outputs (e.g. <code className="text-cyan-400">wrfout_d01_*</code>, <code className="text-cyan-400">wrfout_d02_*</code>, or <code className="text-cyan-400">wrfout_d03_*</code>).
               </p>
 
               <div className="border border-dashed border-slate-700 rounded-xl p-4 text-center hover:border-cyan-400 transition-colors bg-slate-900/50">
@@ -331,7 +336,9 @@ export const DataIngestionModal: React.FC<DataIngestionModalProps> = ({
                   <span className="text-xs text-cyan-400 font-semibold block">
                     {wrfFile ? wrfFile.name : 'Select or drop WRF NetCDF file'}
                   </span>
-                  <span className="text-[10px] text-slate-500 block">Supports NetCDF-3 / NetCDF-4 binary formats</span>
+                  <span className="text-[10px] text-slate-500 block">
+                    {wrfFile ? `${(wrfFile.size / (1024 * 1024)).toFixed(1)} MB` : 'Streamed directly to disk (supports large files up to 5 GB)'}
+                  </span>
                 </label>
               </div>
 
@@ -348,12 +355,17 @@ export const DataIngestionModal: React.FC<DataIngestionModalProps> = ({
 
             {/* GPM IMERG HDF5 Upload */}
             <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-              <div className="flex items-center gap-2 font-bold text-white">
-                <Satellite className="w-4 h-4 text-cyan-400" />
-                Upload GPM IMERG Half-Hourly HDF5 File
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 font-bold text-white">
+                  <Satellite className="w-4 h-4 text-cyan-400" />
+                  Upload GPM IMERG HDF5
+                </div>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300">
+                  Up to {datasetStatus?.maxUploadSizeMb ? `${(datasetStatus.maxUploadSizeMb / 1024).toFixed(1)} GB` : '5 GB'}
+                </span>
               </div>
               <p className="text-[11px] text-slate-400">
-                Upload NASA GPM PPS IMERG files (e.g. <code className="text-cyan-400">3B-HHR-L.MS.MRG.3IMERG.20250901-S003000-E005959.0030.V07B.HDF5</code>).
+                Upload NASA GPM PPS IMERG files (e.g. <code className="text-cyan-400">3B-HHR-L.MS.MRG.3IMERG.*.HDF5</code>).
               </p>
 
               <div className="border border-dashed border-slate-700 rounded-xl p-4 text-center hover:border-cyan-400 transition-colors bg-slate-900/50">
@@ -369,7 +381,9 @@ export const DataIngestionModal: React.FC<DataIngestionModalProps> = ({
                   <span className="text-xs text-cyan-400 font-semibold block">
                     {gpmFile ? gpmFile.name : 'Select or drop GPM IMERG HDF5 file'}
                   </span>
-                  <span className="text-[10px] text-slate-500 block">Extracts calibrated precipitation rate grid (precipitationCal)</span>
+                  <span className="text-[10px] text-slate-500 block">
+                    {gpmFile ? `${(gpmFile.size / (1024 * 1024)).toFixed(1)} MB` : 'Extracts calibrated precipitation rate grid (precipitationCal)'}
+                  </span>
                 </label>
               </div>
 
@@ -386,18 +400,21 @@ export const DataIngestionModal: React.FC<DataIngestionModalProps> = ({
           </div>
 
           {/* Quick scan local directory */}
-          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div>
-              <h4 className="font-semibold text-white">Local Directory Auto-Scan</h4>
-              <p className="text-[11px] text-slate-400">
-                Have NetCDF / HDF5 files placed in the server's <code className="text-cyan-400 font-mono">./uploads</code> folder? Click to batch-ingest.
+              <div className="flex items-center gap-2">
+                <h4 className="font-semibold text-white">Local Directory Direct Ingestion (Bypass Browser Upload)</h4>
+                <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-medium">Recommended for huge WRF files</span>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">
+                For large multi-gigabyte WRF simulation outputs, copy or symlink them directly into <code className="text-cyan-400 font-mono">./uploads/</code> on the server and click <strong>Scan Folder</strong> to ingest instantly without browser network overhead.
               </p>
             </div>
             <button
               type="button"
               onClick={handleScanDirectory}
               disabled={isUploading}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-white font-semibold text-xs flex items-center gap-1.5 transition-colors disabled:opacity-50"
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-white font-semibold text-xs flex items-center gap-1.5 transition-colors disabled:opacity-50 shrink-0"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isUploading ? 'animate-spin' : ''}`} />
               <span>Scan Folder</span>
