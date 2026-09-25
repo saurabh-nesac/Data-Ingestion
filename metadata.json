@@ -1,0 +1,8 @@
+{
+  "name": "Data Ingestion WRF / FREMAA Rainfall Monitoring Dashboard",
+  "description": "Real-time rainfall visualization dashboard for WRF and FREMAA Streaming API endpoints with continuous spatial interpolation, Survey of India (SOI) political basemap, atmospheric meteogram, station telemetry, and hyetograph time series.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
